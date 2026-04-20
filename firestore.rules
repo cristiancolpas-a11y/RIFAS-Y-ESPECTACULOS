@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email.lower() == "cristian.colpas@logisticos.co".lower()) ||
+        (exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidUsuario(data) {
+      return data.email is string && 
+             data.role in ['admin', 'participante'];
+    }
+
+    function isValidRifa(data) {
+      return data.nombre is string && 
+             data.precioPorNumero is number && data.precioPorNumero > 0 &&
+             data.cantidadNumeros is number && data.cantidadNumeros > 0 &&
+             data.estado in ['activa', 'finalizada'] &&
+             data.fechaSorteo != null;
+    }
+
+    function isValidCompra(data) {
+      return (data.usuarioId == request.auth.uid || (isAdmin() && data.usuarioId == 'admin_manual')) &&
+             data.rifaId is string &&
+             data.numeros is list && data.numeros.size() > 0 &&
+             data.montoTotal is number &&
+             data.estadoPago in ['pendiente', 'validado', 'rechazado'];
+    }
+
+    // Collection: Usuarios
+    match /usuarios/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && (incoming().role == 'participante' || isAdmin()); // Allow admin to create their own profile
+      allow update: if (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])) || isAdmin();
+    }
+
+    // Collection: Rifas
+    match /rifas/{rifaId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isAdmin() && isValidRifa(incoming());
+      allow update: if isAdmin() && isValidRifa(incoming());
+      allow delete: if isAdmin();
+
+      // Subcollection: Compras
+      match /compras/{compraId} {
+        allow get: if isOwner(existing().usuarioId) || isAdmin();
+        allow list: if isAdmin() || (isSignedIn() && resource.data.usuarioId == request.auth.uid);
+        allow create: if isSignedIn() && isValidCompra(incoming()) && (incoming().estadoPago == 'pendiente' || isAdmin());
+        allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['estadoPago', 'validadoAt', 'validadoBy']);
+      }
+
+      // Subcollection: Números Reservados
+      match /numeros_reservados/{numero} {
+        allow get: if true;
+        allow list: if true;
+        allow create: if isSignedIn() && (incoming().usuarioId == request.auth.uid || isAdmin());
+        allow delete: if isAdmin();
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "usuario": {
+      "title": "Usuario",
+      "description": "Perfil de usuario con información de rol.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "participante"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "rifa": {
+      "title": "Rifa",
+      "description": "Definición de una rifa.",
+      "type": "object",
+      "properties": {
+        "nombre": { "type": "string" },
+        "descripcion": { "type": "string" },
+        "precioPorNumero": { "type": "number" },
+        "cantidadNumeros": { "type": "integer" },
+        "fechaSorteo": { "type": "string", "format": "date-time" },
+        "imagenPremio": { "type": "string" },
+        "estado": { "type": "string", "enum": ["activa", "finalizada"] },
+        "numeroGanador": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["nombre", "precioPorNumero", "cantidadNumeros", "fechaSorteo", "estado"]
+    },
+    "compra": {
+      "title": "Compra",
+      "description": "Registro de intención de compra de números.",
+      "type": "object",
+      "properties": {
+        "usuarioId": { "type": "string" },
+        "rifaId": { "type": "string" },
+        "numeros": { "type": "array", "items": { "type": "integer" } },
+        "montoTotal": { "type": "number" },
+        "estadoPago": { "type": "string", "enum": ["pendiente", "validado", "rechazado"] },
+        "comprobanteURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "validadoAt": { "type": "string", "format": "date-time" },
+        "validadoBy": { "type": "string" }
+      },
+      "required": ["usuarioId", "rifaId", "numeros", "montoTotal", "estadoPago"]
+    },
+    "numero_reservado": {
+      "title": "Número Reservado",
+      "description": "Mapeo rápido de números ocupados para evitar colisiones.",
+      "type": "object",
+      "properties": {
+        "rifaId": { "type": "string" },
+        "usuarioId": { "type": "string" },
+        "compraId": { "type": "string" },
+        "numero": { "type": "integer" }
+      }
+    }
+  },
+  "firestore": {
+    "usuarios/{userId}": {
+      "schema": "usuario",
+      "description": "Perfiles de usuario."
+    },
+    "rifas/{rifaId}": {
+      "schema": "rifa",
+      "description": "Información de las rifas."
+    },
+    "rifas/{rifaId}/compras/{compraId}": {
+      "schema": "compra",
+      "description": "Compras asociadas a una rifa específica."
+    },
+    "rifas/{rifaId}/numeros_reservados/{numero}": {
+      "schema": "numero_reservado",
+      "description": "Números reservados para evitar doble compra."
+    }
+  }
+}
