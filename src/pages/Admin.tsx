@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Check, X, Trophy, ExternalLink, Download, Info, Ticket } from 'lucide-react';
+import { Plus, Trash2, Check, X, Trophy, ExternalLink, Download, Info, Ticket, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -21,6 +21,8 @@ export default function Admin() {
   const { user, role } = useAuth();
   const [rifas, setRifas] = useState<any[]>([]);
   const [pagosPendientes, setPagosPendientes] = useState<any[]>([]);
+  const [reservedNumbers, setReservedNumbers] = useState<any[]>([]);
+  const [editingReserva, setEditingReserva] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   // New Rifa State
@@ -38,16 +40,35 @@ export default function Admin() {
 
     const unsubRifas = onSnapshot(query(collection(db, 'rifas'), orderBy('createdAt', 'desc')), (snapshot) => {
       setRifas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+      console.error("Admin Rifas listener error:", err);
+      toast.error("Error al cargar rifas: Permisos insuficientes");
     });
 
     const qPagos = query(collectionGroup(db, 'compras'), where('estadoPago', '==', 'pendiente'), orderBy('createdAt', 'desc'));
     const unsubPagos = onSnapshot(qPagos, (snapshot) => {
       setPagosPendientes(snapshot.docs.map(doc => ({ id: doc.id, ref: doc.ref, ...doc.data() })));
+    }, (err) => {
+      console.error("Admin Pagos listener error:", err);
+      // Don't toast here to avoid spam if role is still syncing
+    });
+
+    const qReserved = query(collectionGroup(db, 'numeros_reservados'));
+    const unsubReserved = onSnapshot(qReserved, (snapshot) => {
+      setReservedNumbers(snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ref: doc.ref, 
+        rifaId: doc.ref.parent.parent?.id,
+        ...doc.data() 
+      })));
+    }, (err) => {
+      console.error("Admin Reserved listener error:", err);
     });
 
     return () => {
       unsubRifas();
       unsubPagos();
+      unsubReserved();
     };
   }, [role]);
 
@@ -133,6 +154,39 @@ export default function Admin() {
     }
   };
 
+  const handleEliminarUnaReserva = async (reserva: any) => {
+    if (!confirm(`¿Seguro que deseas eliminar la reserva del número #${reserva.numero}?`)) return;
+    try {
+      await deleteDoc(reserva.ref);
+      toast.success('Reserva eliminada');
+    } catch (error) {
+      toast.error('Error al eliminar reserva');
+    }
+  };
+
+  const handleTogglePagoReserva = async (reserva: any) => {
+    try {
+      const nuevoEstado = reserva.estadoPago === 'validado' ? 'pendiente' : 'validado';
+      await updateDoc(reserva.ref, { estadoPago: nuevoEstado });
+      toast.success(`Número #${reserva.numero} marcado como ${nuevoEstado}`);
+    } catch (error) {
+      toast.error('Error al actualizar estado');
+    }
+  };
+
+  const handleUpdateReserva = async () => {
+    if (!editingReserva) return;
+    try {
+      await updateDoc(editingReserva.ref, {
+        clienteNombre: editingReserva.clienteNombre
+      });
+      toast.success('Reserva actualizada');
+      setEditingReserva(null);
+    } catch (error) {
+      toast.error('Error al actualizar reserva');
+    }
+  };
+
   if (role !== 'admin') {
     return (
       <div className="text-center py-20">
@@ -196,9 +250,10 @@ export default function Admin() {
       </header>
 
       <Tabs defaultValue="rifas" className="w-full">
-        <TabsList className="bg-slate-100 p-1 rounded-xl w-full max-w-md grid grid-cols-2">
+        <TabsList className="bg-slate-100 p-1 rounded-xl w-full max-w-lg grid grid-cols-3">
           <TabsTrigger value="rifas" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-xs uppercase tracking-wider">Rifas Activas</TabsTrigger>
           <TabsTrigger value="pagos" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-xs uppercase tracking-wider">Validaciones</TabsTrigger>
+          <TabsTrigger value="numeros" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-xs uppercase tracking-wider">Gestión Números</TabsTrigger>
         </TabsList>
 
         <TabsContent value="rifas" className="pt-6">
@@ -206,8 +261,16 @@ export default function Admin() {
             {rifas.map(rifa => (
               <Card key={rifa.id} className="bento-card overflow-hidden p-0 border-slate-200 shadow-sm">
                 <div className="flex flex-col md:flex-row">
-                  <div className="w-full md:w-48 h-32 md:h-auto overflow-hidden">
-                    <img src={rifa.imagenPremio} className="w-full h-full object-cover" />
+                  <div className="w-full md:w-48 h-32 md:h-auto overflow-hidden bg-slate-100">
+                    <img 
+                      src={rifa.imagenPremio ? (rifa.imagenPremio.startsWith('http') ? rifa.imagenPremio : `https://${rifa.imagenPremio}`) : 'https://picsum.photos/seed/gift/400/300'} 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/broken/400/300?blur=1';
+                      }}
+                    />
                   </div>
                   <CardContent className="flex-grow p-6 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="space-y-1 text-center md:text-left">
@@ -275,6 +338,10 @@ export default function Admin() {
                         <Badge variant="outline" className="text-amber-600 border-amber-100 bg-amber-50">PENDIENTE</Badge>
                       </div>
                       <div className="font-bold text-slate-800">${pago.montoTotal.toLocaleString()}</div>
+                      <div className="text-xs font-medium text-slate-600">
+                        {pago.cliente?.nombre || 'ID: ' + pago.usuarioId}
+                        {pago.cliente?.telefono && <span className="ml-2 text-slate-400">({pago.cliente.telefono})</span>}
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {pago.numeros.map((n: number) => (
                           <span key={n} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-600">#{n}</span>
@@ -283,9 +350,15 @@ export default function Admin() {
                     </div>
                     
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                      <Button variant="outline" size="sm" className="flex-1 md:flex-none h-9 rounded-lg" asChild>
-                        <a href={pago.comprobanteURL} target="_blank" rel="noopener noreferrer">Ver Comprobante</a>
-                      </Button>
+                      {pago.comprobanteURL && pago.comprobanteURL.startsWith('http') ? (
+                        <Button variant="outline" size="sm" className="flex-1 md:flex-none h-9 rounded-lg" asChild>
+                          <a href={pago.comprobanteURL} target="_blank" rel="noopener noreferrer">Ver Comprobante</a>
+                        </Button>
+                      ) : (
+                        <div className="text-[10px] bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg text-slate-400 font-bold uppercase tracking-tight">
+                           Sin Comprobante
+                        </div>
+                      )}
                       <Button size="sm" className="flex-1 md:flex-none h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 font-bold" onClick={() => handleValidarPago(pago, 'validado')}>
                         <Check className="w-4 h-4 mr-1" /> Aprobar
                       </Button>
@@ -302,7 +375,106 @@ export default function Admin() {
             )}
           </Card>
         </TabsContent>
+        <TabsContent value="numeros" className="pt-6">
+          <Card className="bento-card border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-slate-100 bg-slate-50/30">
+              <CardTitle className="text-lg font-bold text-slate-800">Control de Números Reservados</CardTitle>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                    <TableHead className="w-20 font-bold text-xs uppercase tracking-widest text-slate-400"># Nro</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-widest text-slate-400">Cliente</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-widest text-slate-400">ID Sorteo</TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-widest text-slate-400">Estado Pago</TableHead>
+                    <TableHead className="text-right font-bold text-xs uppercase tracking-widest text-slate-400">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reservedNumbers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">No hay números reservados actualmente</TableCell>
+                    </TableRow>
+                  ) : (
+                    reservedNumbers.sort((a,b) => a.numero - b.numero).map((reserva) => (
+                      <TableRow key={reserva.id} className="hover:bg-slate-50/50 border-b border-slate-100 transition-colors">
+                        <TableCell className="font-bold text-primary-600">
+                           #{reserva.numero.toString().padStart(3, '0')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-slate-800">{reserva.clienteNombre || 'Invitado'}</div>
+                        </TableCell>
+                        <TableCell className="text-[10px] font-bold text-slate-400 uppercase">
+                          {reserva.rifaId?.slice(-6)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                             <input 
+                               type="checkbox" 
+                               checked={reserva.estadoPago === 'validado'}
+                               onChange={() => handleTogglePagoReserva(reserva)}
+                               className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                             />
+                             <Badge className={`
+                               font-bold text-[9px] uppercase tracking-wider
+                               ${reserva.estadoPago === 'validado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}
+                             `}>
+                               {reserva.estadoPago === 'validado' ? 'Pagado' : 'Pendiente'}
+                             </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end items-center gap-1">
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-full"
+                               onClick={() => setEditingReserva(reserva)}
+                             >
+                               <Pencil className="w-4 h-4" />
+                             </Button>
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                               onClick={() => handleEliminarUnaReserva(reserva)}
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Edit Reserva Dialog */}
+      <Dialog open={!!editingReserva} onOpenChange={() => setEditingReserva(null)}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Reserva #{editingReserva?.numero}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-1.5">
+              <Label>Nombre del Cliente</Label>
+              <Input 
+                value={editingReserva?.clienteNombre || ''} 
+                onChange={e => setEditingReserva({...editingReserva, clienteNombre: e.target.value})}
+                className="rounded-xl"
+              />
+            </div>
+            <Button onClick={handleUpdateReserva} className="w-full h-12 bg-primary-600 rounded-xl font-bold">
+              Guardar Cambios
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

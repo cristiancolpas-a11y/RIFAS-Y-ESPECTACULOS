@@ -38,7 +38,9 @@ export default function RifaDetails() {
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [comprobanteURL, setComprobanteURL] = useState('');
+  const [guestInfo, setGuestInfo] = useState({ nombre: '', telefono: '' });
 
   // Handle URL pre-selection
   useEffect(() => {
@@ -87,19 +89,19 @@ export default function RifaDetails() {
   };
 
   const handleBuy = async () => {
-    if (!user) {
-      toast.error('Debes iniciar sesión para comprar números');
-      return;
-    }
     if (selected.length === 0) return;
+    setGuestInfo({ nombre: '', telefono: '' });
     setShowPayment(true);
   };
 
   const processPurchase = async () => {
-    if (!id || !rifa || !user || !comprobanteURL) {
-      toast.error('Por favor ingresa la URL del comprobante de transferencia');
+    if (!id || !rifa) return;
+
+    if (!user && (!guestInfo.nombre || !guestInfo.telefono)) {
+      toast.error('Por favor ingresa tu nombre y teléfono para identificarte');
       return;
     }
+
     setBuying(true);
 
     try {
@@ -117,21 +119,28 @@ export default function RifaDetails() {
         for (const num of selected) {
           const resRef = doc(db, 'rifas', id, 'numeros_reservados', num.toString());
           transaction.set(resRef, {
-            usuarioId: user.uid,
+            usuarioId: user?.uid || 'invitado',
             numero: num,
-            compraId: 'pending' // Fixed later
+            compraId: 'pending',
+            clienteNombre: guestInfo.nombre || user?.displayName || 'Invitado',
+            estadoPago: 'pendiente'
           });
         }
 
         // 3. Create Purchase Record
         const purchaseRef = doc(collection(db, 'rifas', id, 'compras'));
         transaction.set(purchaseRef, {
-          usuarioId: user.uid,
+          usuarioId: user?.uid || 'invitado',
           rifaId: id,
           numeros: selected,
           montoTotal: selected.length * rifa.precioPorNumero,
           estadoPago: 'pendiente',
-          comprobanteURL,
+          comprobanteURL: comprobanteURL || 'Pendiente de envío',
+          cliente: {
+            nombre: guestInfo.nombre || user?.displayName || 'Invitado',
+            telefono: guestInfo.telefono,
+            email: user?.email || ''
+          },
           createdAt: serverTimestamp()
         });
 
@@ -145,7 +154,11 @@ export default function RifaDetails() {
       toast.success('¡Reserva exitosa! El administrador validará tu pago pronto.');
       setShowPayment(false);
       setSelected([]);
-      navigate('/mis-compras');
+      if (user) {
+        navigate('/mis-compras');
+      } else {
+        setShowSuccess(true);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Error al procesar la compra');
     } finally {
@@ -212,12 +225,16 @@ export default function RifaDetails() {
         {/* Rifa Sidebar Info */}
         <div className="md:col-span-5 space-y-6">
           <Card className="bento-card overflow-hidden p-0 border-slate-200">
-            <img 
-              src={rifa.imagenPremio || 'https://picsum.photos/seed/gift/800/450'} 
-              alt={rifa.nombre}
-              className="w-full aspect-square object-cover"
-              referrerPolicy="no-referrer"
-            />
+              <img 
+                src={rifa.imagenPremio ? (rifa.imagenPremio.startsWith('http') ? rifa.imagenPremio : `https://${rifa.imagenPremio}`) : 'https://picsum.photos/seed/gift/800/450'} 
+                alt={rifa.nombre}
+                className="w-full aspect-square object-cover"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/broken/800/800?blur=2';
+                }}
+              />
             <div className="p-6">
                <div className="flex justify-between items-start mb-2">
                  <h2 className="font-display text-2xl font-bold text-slate-800 tracking-tight">{rifa.nombre}</h2>
@@ -344,49 +361,82 @@ export default function RifaDetails() {
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Payment Modal Simplified to Reservation */}
       <Dialog open={showPayment} onOpenChange={setShowPayment}>
         <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-display text-2xl text-primary-600 flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6" />
-              Completa tu Compra
-            </DialogTitle>
-            <DialogDescription className="text-gray-500 pt-2">
-              Para validar tu compra, realiza una transferencia por el monto total e ingresa la URL del comprobante o número de referencia.
+          <DialogHeader className="text-center">
+            <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100">
+               <Ticket className="w-8 h-8 text-primary-600" />
+            </div>
+            <DialogTitle className="font-display text-2xl text-slate-800">Reservar Números</DialogTitle>
+            <DialogDescription className="text-slate-500 pt-2">
+              Ingresa tus datos para registrar tu selección de números.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 pt-4">
-            <div className="bg-gray-50 p-4 rounded-xl space-y-2">
-              <div className="text-sm font-bold text-gray-400">DATOS DE TRANSFERENCIA</div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Banco:</span> <span className="font-bold">Bancolombia</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Cuenta:</span> <span className="font-bold">123-456789-00</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Tipo:</span> <span className="font-bold">Ahorros</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Nombre:</span> <span className="font-bold">SorteoYa Rifas</span></div>
-                <div className="flex justify-between text-lg pt-2 border-t border-gray-200"><span className="text-gray-900 font-bold">Total a transferir:</span> <span className="text-primary-600 font-bold">${total.toLocaleString()}</span></div>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Nombre Completo</Label>
+                <Input 
+                  placeholder={user?.displayName || "Ej: Juan Pérez"}
+                  value={guestInfo.nombre}
+                  onChange={(e) => setGuestInfo({...guestInfo, nombre: e.target.value})}
+                  className="h-12 rounded-xl bg-slate-50 border-slate-100 font-medium"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Número de WhatsApp</Label>
+                <Input 
+                  placeholder="Ej: 3211234567"
+                  value={guestInfo.telefono}
+                  onChange={(e) => setGuestInfo({...guestInfo, telefono: e.target.value})}
+                  className="h-12 rounded-xl bg-slate-50 border-slate-100 font-medium"
+                />
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-sm font-bold text-gray-700">Comprobante de Pago (URL o Referencia)</Label>
-              <Input 
-                placeholder="Ej: https://imgbb.com/mipago.jpg o Ref: #9928"
-                value={comprobanteURL}
-                onChange={(e) => setComprobanteURL(e.target.value)}
-                className="h-12 rounded-xl"
-              />
-              <p className="text-[10px] text-gray-400">Sube tu foto a un servicio como ImgBB y pega la URL aquí.</p>
+            <div className="bg-slate-900 rounded-2xl p-6 text-white flex justify-between items-center shadow-xl">
+               <div className="space-y-0.5">
+                  <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">Total a Pagar</div>
+                  <div className="text-2xl font-display font-bold">${total.toLocaleString()}</div>
+               </div>
+               <div className="text-right">
+                  <div className="text-[10px] font-bold uppercase tracking-widest opacity-60">Números</div>
+                  <div className="text-sm font-bold text-emerald-400">{selected.length} boletos</div>
+               </div>
             </div>
 
             <Button 
               onClick={processPurchase} 
-              disabled={buying || !comprobanteURL} 
-              className="w-full h-12 bg-primary-600 text-lg font-bold rounded-xl"
+              disabled={buying || (!guestInfo.nombre && !user?.displayName) || !guestInfo.telefono} 
+              className="w-full h-14 bg-primary-600 hover:bg-primary-700 text-white text-lg font-bold rounded-2xl shadow-lg shadow-primary-600/20"
             >
-              {buying ? 'Procesando...' : 'Confirmar y Finalizar'}
+              {buying ? 'Procesando...' : 'Confirmar Reserva'}
             </Button>
+            
+            <p className="text-[10px] text-center text-slate-400 font-medium px-6">
+              Al confirmar, tus números quedarán reservados. Coordina el pago con el administrador para activarlos.
+            </p>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Success Modal for Guests */}
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="max-w-md rounded-2xl bg-white p-8 text-center">
+          <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+          </div>
+          <DialogTitle className="text-2xl font-display font-bold text-slate-800 mb-2">¡Reserva Recibida!</DialogTitle>
+          <DialogDescription className="text-slate-500 mb-8">
+            Tu reserva ha sido registrada correctamente. El administrador validará el comprobante y activará tus números pronto.
+          </DialogDescription>
+          <Button 
+            onClick={() => setShowSuccess(false)} 
+            className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold"
+          >
+            Entendido
+          </Button>
+          <p className="mt-4 text-[10px] text-slate-400 uppercase tracking-widest font-bold">Gracias por participar</p>
         </DialogContent>
       </Dialog>
     </div>

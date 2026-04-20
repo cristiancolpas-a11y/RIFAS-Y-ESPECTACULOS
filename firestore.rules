@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Default deny catch-all
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
 
     // Helper functions
@@ -15,7 +15,7 @@ service cloud.firestore {
     }
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email.lower() == "cristian.colpas@logisticos.co".lower()) ||
+        request.auth.token.email == "cristian.colpas@logisticos.co" ||
         (exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == "admin")
       );
     }
@@ -41,19 +41,39 @@ service cloud.firestore {
     }
 
     function isValidCompra(data) {
-      return (data.usuarioId == request.auth.uid || (isAdmin() && data.usuarioId == 'admin_manual')) &&
+      return (data.usuarioId == request.auth.uid || data.usuarioId == 'invitado' || (isAdmin() && data.usuarioId == 'admin_manual')) &&
              data.rifaId is string &&
              data.numeros is list && data.numeros.size() > 0 &&
              data.montoTotal is number &&
              data.estadoPago in ['pendiente', 'validado', 'rechazado'];
     }
 
+    // Collection Groups
+    match /{path=**}/compras/{compraId} {
+      allow get: if (isSignedIn() && resource.data.usuarioId == request.auth.uid) || resource.data.usuarioId == 'invitado' || isAdmin();
+      allow list: if isAdmin() || 
+                   (isSignedIn() && resource.data.usuarioId == request.auth.uid) ||
+                   (resource.data.usuarioId == 'invitado');
+      allow create: if (isSignedIn() || incoming().usuarioId == 'invitado') && isValidCompra(incoming()) && (incoming().estadoPago == 'pendiente' || isAdmin());
+      allow update: if isAdmin() && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['estadoPago', 'validadoAt', 'validadoBy']) ||
+        isAdmin() // Full update for admin if needed
+      );
+    }
+
+    match /{path=**}/numeros_reservados/{numero} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if (isSignedIn() || incoming().usuarioId == 'invitado') && (incoming().usuarioId == (request.auth != null ? request.auth.uid : 'invitado') || isAdmin());
+      allow delete: if isAdmin();
+    }
+
     // Collection: Usuarios
     match /usuarios/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && (incoming().role == 'participante' || isAdmin()); // Allow admin to create their own profile
-      allow update: if (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])) || isAdmin();
+      allow create: if (isSignedIn() && request.auth.uid == userId) && (incoming().role == 'participante' || isAdmin());
+      allow update: if (isSignedIn() && request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL'])) || isAdmin();
     }
 
     // Collection: Rifas
@@ -63,22 +83,6 @@ service cloud.firestore {
       allow create: if isAdmin() && isValidRifa(incoming());
       allow update: if isAdmin() && isValidRifa(incoming());
       allow delete: if isAdmin();
-
-      // Subcollection: Compras
-      match /compras/{compraId} {
-        allow get: if isOwner(existing().usuarioId) || isAdmin();
-        allow list: if isAdmin() || (isSignedIn() && resource.data.usuarioId == request.auth.uid);
-        allow create: if isSignedIn() && isValidCompra(incoming()) && (incoming().estadoPago == 'pendiente' || isAdmin());
-        allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['estadoPago', 'validadoAt', 'validadoBy']);
-      }
-
-      // Subcollection: Números Reservados
-      match /numeros_reservados/{numero} {
-        allow get: if true;
-        allow list: if true;
-        allow create: if isSignedIn() && (incoming().usuarioId == request.auth.uid || isAdmin());
-        allow delete: if isAdmin();
-      }
     }
   }
 }

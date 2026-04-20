@@ -69,10 +69,14 @@ export default function Home() {
           <div className="md:col-span-8 group relative overflow-hidden bg-slate-900 text-white rounded-2xl border-0 h-[300px] md:h-auto min-h-[300px]">
             <div className="absolute inset-0 opacity-40">
               <img 
-                src={featured.imagenPremio || 'https://picsum.photos/seed/gift/1200/600'} 
+                src={featured.imagenPremio ? (featured.imagenPremio.startsWith('http') ? featured.imagenPremio : `https://${featured.imagenPremio}`) : 'https://picsum.photos/seed/gift/1200/600'} 
                 alt={featured.nombre}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/broken/1200/600?blur=2';
+                }}
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent" />
@@ -129,10 +133,14 @@ export default function Home() {
               <Card className="bento-card overflow-hidden group flex flex-col h-full border-slate-200 p-0 shadow-sm hover:shadow-md transition-all">
                 <div className="relative aspect-video overflow-hidden">
                   <img 
-                    src={rifa.imagenPremio || 'https://picsum.photos/seed/gift/800/450'} 
+                    src={rifa.imagenPremio ? (rifa.imagenPremio.startsWith('http') ? rifa.imagenPremio : `https://${rifa.imagenPremio}`) : 'https://picsum.photos/seed/gift/800/450'} 
                     alt={rifa.nombre}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/broken/800/450?blur=2';
+                    }}
                   />
                   <div className="absolute bottom-3 left-3">
                     <Badge className="bg-white/90 backdrop-blur-md text-slate-800 border-none shadow-sm font-bold">

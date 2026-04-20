@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
+        console.log("Auth: User logged in as:", currentUser.email, "| UID:", currentUser.uid);
         // Hardcode admin for the app owner
         if (currentUser.email === 'cristian.colpas@logisticos.co') {
           setRole('admin');
