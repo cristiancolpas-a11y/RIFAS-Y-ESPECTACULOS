@@ -19,6 +19,7 @@ interface Rifa {
   fechaSorteo: any;
   imagenPremio: string;
   estado: 'activa' | 'finalizada';
+  responsable?: string;
 }
 
 export default function Home() {
@@ -86,6 +87,9 @@ export default function Home() {
               </div>
             </div>
             <div className="relative h-full flex flex-col justify-end p-8 z-10">
+              {featured.responsable && (
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-1 block">Responsable: {featured.responsable}</span>
+              )}
               <span className="bg-primary-500 text-[10px] font-bold px-2 py-0.5 rounded uppercase mb-2 inline-block w-fit tracking-wider">Premio Destacado</span>
               <h2 className="text-2xl md:text-3xl font-bold mb-1 font-display tracking-tight leading-none">{featured.nombre}</h2>
               <p className="text-slate-300 text-sm mb-4 max-w-md line-clamp-2">{featured.descripcion}</p>
@@ -149,7 +153,12 @@ export default function Home() {
                   </div>
                 </div>
                 <CardHeader className="p-5 pb-0">
-                  <CardTitle className="font-display font-bold text-lg text-slate-800 line-clamp-1">{rifa.nombre}</CardTitle>
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="font-display font-bold text-lg text-slate-800 line-clamp-1">{rifa.nombre}</CardTitle>
+                  </div>
+                  {rifa.responsable && (
+                    <p className="text-[9px] font-bold text-primary-600 uppercase tracking-widest mt-0.5">Resp: {rifa.responsable}</p>
+                  )}
                 </CardHeader>
                 <CardContent className="p-5 flex-grow space-y-3">
                   <p className="text-slate-500 line-clamp-2 text-xs leading-relaxed">{rifa.descripcion}</p>

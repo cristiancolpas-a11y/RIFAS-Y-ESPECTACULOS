@@ -25,6 +25,7 @@ interface Rifa {
   fechaSorteo: any;
   imagenPremio: string;
   estado: 'activa' | 'finalizada';
+  responsable?: string;
 }
 
 export default function RifaDetails() {
@@ -40,7 +41,7 @@ export default function RifaDetails() {
   const [showPayment, setShowPayment] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [comprobanteURL, setComprobanteURL] = useState('');
-  const [guestInfo, setGuestInfo] = useState({ nombre: '', telefono: '' });
+  const [guestInfo, setGuestInfo] = useState({ nombre: '', telefono: '', vendedor: '' });
 
   // Handle URL pre-selection
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function RifaDetails() {
 
   const handleBuy = async () => {
     if (selected.length === 0) return;
-    setGuestInfo({ nombre: '', telefono: '' });
+    setGuestInfo({ nombre: '', telefono: '', vendedor: '' });
     setShowPayment(true);
   };
 
@@ -123,7 +124,8 @@ export default function RifaDetails() {
             numero: num,
             compraId: 'pending',
             clienteNombre: guestInfo.nombre || user?.displayName || 'Invitado',
-            estadoPago: 'pendiente'
+            estadoPago: 'pendiente',
+            vendedor: guestInfo.vendedor || ''
           });
         }
 
@@ -139,7 +141,8 @@ export default function RifaDetails() {
           cliente: {
             nombre: guestInfo.nombre || user?.displayName || 'Invitado',
             telefono: guestInfo.telefono,
-            email: user?.email || ''
+            email: user?.email || '',
+            vendedor: guestInfo.vendedor || ''
           },
           createdAt: serverTimestamp()
         });
@@ -237,7 +240,14 @@ export default function RifaDetails() {
               />
             <div className="p-6">
                <div className="flex justify-between items-start mb-2">
-                 <h2 className="font-display text-2xl font-bold text-slate-800 tracking-tight">{rifa.nombre}</h2>
+                 <div>
+                    <h2 className="font-display text-2xl font-bold text-slate-800 tracking-tight">{rifa.nombre}</h2>
+                    {rifa.responsable && (
+                      <p className="text-[10px] font-bold text-primary-600 uppercase tracking-widest mt-0.5">
+                        Resp: {rifa.responsable}
+                      </p>
+                    )}
+                 </div>
                  <Button variant="ghost" size="icon" className="rounded-full text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" onClick={handleShare}>
                    <Share2 className="w-4 h-4" />
                  </Button>
@@ -390,6 +400,15 @@ export default function RifaDetails() {
                   placeholder="Ej: 3211234567"
                   value={guestInfo.telefono}
                   onChange={(e) => setGuestInfo({...guestInfo, telefono: e.target.value})}
+                  className="h-12 rounded-xl bg-slate-50 border-slate-100 font-medium"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Vendedor / Responsable Pago</Label>
+                <Input 
+                  placeholder="Ej: Maria Lopez"
+                  value={guestInfo.vendedor}
+                  onChange={(e) => setGuestInfo({...guestInfo, vendedor: e.target.value})}
                   className="h-12 rounded-xl bg-slate-50 border-slate-100 font-medium"
                 />
               </div>

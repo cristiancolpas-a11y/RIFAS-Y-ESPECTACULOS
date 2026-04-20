@@ -32,7 +32,8 @@ export default function Admin() {
     precioPorNumero: '',
     cantidadNumeros: '',
     fechaSorteo: '',
-    imagenPremio: ''
+    imagenPremio: '',
+    responsable: ''
   });
 
   useEffect(() => {
@@ -133,7 +134,7 @@ export default function Admin() {
         createdBy: user?.uid
       });
       toast.success('Rifa creada exitosamente');
-      setNewRifa({ nombre: '', descripcion: '', precioPorNumero: '', cantidadNumeros: '', fechaSorteo: '', imagenPremio: '' });
+      setNewRifa({ nombre: '', descripcion: '', precioPorNumero: '', cantidadNumeros: '', fechaSorteo: '', imagenPremio: '', responsable: '' });
     } catch (error: any) {
       console.error("DEBUG - Rifa Creation Error:", error);
       toast.error(`Error: ${error.message || 'Error al crear la rifa'}`);
@@ -238,6 +239,10 @@ export default function Admin() {
                 <Input type="datetime-local" value={newRifa.fechaSorteo} onChange={e => setNewRifa({...newRifa, fechaSorteo: e.target.value})} className="rounded-xl border-slate-200 h-11" />
               </div>
               <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Responsable / Encargado</Label>
+                <Input value={newRifa.responsable} onChange={e => setNewRifa({...newRifa, responsable: e.target.value})} placeholder="Ej: Maria Lopez" className="rounded-xl border-slate-200 h-11" />
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Imagen (URL)</Label>
                 <Input value={newRifa.imagenPremio} onChange={e => setNewRifa({...newRifa, imagenPremio: e.target.value})} placeholder="https://..." className="rounded-xl border-slate-200 h-11" />
               </div>
@@ -276,6 +281,9 @@ export default function Admin() {
                     <div className="space-y-1 text-center md:text-left">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{rifa.id.slice(-8)}</span>
                       <h3 className="font-display font-bold text-xl text-slate-800">{rifa.nombre}</h3>
+                      <div className="text-[10px] font-bold text-primary-600/70 uppercase tracking-tight mb-1">
+                        Encargado: {rifa.responsable || 'Administrador'}
+                      </div>
                       <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
                         <span className="flex items-center gap-1"><Ticket className="w-3.5 h-3.5" /> {rifa.cantidadNumeros} Números</span>
                         <Badge variant="outline" className={rifa.estado === 'activa' ? 'text-emerald-600 border-emerald-200 bg-emerald-50 font-bold' : 'text-slate-400 font-bold'}>
@@ -342,6 +350,11 @@ export default function Admin() {
                         {pago.cliente?.nombre || 'ID: ' + pago.usuarioId}
                         {pago.cliente?.telefono && <span className="ml-2 text-slate-400">({pago.cliente.telefono})</span>}
                       </div>
+                      {pago.cliente?.vendedor && (
+                        <div className="text-[10px] font-bold text-primary-600 uppercase tracking-widest mt-1">
+                          Vendedor: {pago.cliente.vendedor}
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-1">
                         {pago.numeros.map((n: number) => (
                           <span key={n} className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-600">#{n}</span>
@@ -404,6 +417,9 @@ export default function Admin() {
                         </TableCell>
                         <TableCell>
                           <div className="font-medium text-slate-800">{reserva.clienteNombre || 'Invitado'}</div>
+                          {reserva.vendedor && (
+                            <div className="text-[9px] font-bold text-primary-600 uppercase tracking-wider">{reserva.vendedor}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-[10px] font-bold text-slate-400 uppercase">
                           {reserva.rifaId?.slice(-6)}
